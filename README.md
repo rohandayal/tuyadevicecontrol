@@ -1,97 +1,60 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# Tuya Device Control
 
-# Getting Started
+A simple project to control Tuya/Smartlife IoT devices such as light bulbs and fans. Devices can be grouped to control simultaneously. I created the app as:
+- I wanted all my devices to be controlled in a single place
+- I did not like the complicated setup and interface of the Smartlife app
+- Google Home / Alexa did not give me access to all device controls and their interfaces were too distributed (one page for each device)
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+This is mostly a DIY approach where device details are copied and pasted from the Tuya Platform website instead of full device management. It's a nice starting point for someone wishing to build an app to control devices. I made the project using Claude Sonnet 4.6 in a 6 hour coding session without writing a single line of code (though I knew what I was doing). I added small features over the next week and am using it literally everyday!
 
-## Step 1: Start Metro
+Confirmed to be working with the following devices:
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+- Wipro Wi-Fi LED Smart Bulbs (all wattages - can control color or temperature and brightness)
+- Orient AeroSlim Fan (can control speed and LED - can also control fan modes and schedules though this has not been implemented as I never use it)
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+## Technical Details
 
-```sh
-# Using npm
-npm start
+- **Framework:** React Native 0.84 (React 19)
+- **Language:** TypeScript 5.8
+- **Platforms:** Android (confirmed to be working) & iOS (not tested)
+- **API:** Tuya OpenAPI v1.0 — requests signed with HMAC-SHA256 per Tuya's URL-aware signing spec
+- **Storage:** `@react-native-async-storage/async-storage` — credentials and device config are persisted locally on-device
+- **Config transfer:** `crypto-js` AES-128 encryption used to encode exported config strings (`HC1:…` format) for safe sharing
+- **Supported Tuya regions:** India (should work with other regions as well but I did not want to keep a dropdown for something that may never be used - change the region in SetupScreen.tsx if needed)
+- **Key dependencies:**
+  - `react-native-safe-area-context` — safe area insets for notch/home-bar support
+  - `crypto-js` — HMAC-SHA256 request signing and AES config export/import
 
-# OR using Yarn
-yarn start
-```
+## How to use
 
-## Step 2: Build and run your app
+### One-time Setup
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
+1. Register at [platform.tuya.com](https://platform.tuya.com)
+2. Create a Cloud project and enable the **IoT Core** API product
+3. In your project, go to **Devices** → **Link Tuya App Account** and scan the QR code with the SmartLife app
+4. Copy your **Access ID** and **Access Secret** from the project overview page
+5. Find your **Device IDs** in the Tuya console under Cloud → Devices → click a device
+6. Open the app and enter your Access ID, Access Secret, and add each Device ID
+7. Optionally, create **Light Groups** to control multiple colour lights together as one unit
+8. Tap **Connect** to save and start controlling your devices
 
-### Android
+> **Wipro Next devices:** Add them to the SmartLife app first (they are Tuya-compatible). If they don't appear, use the Wipro Next app's "Link with SmartLife" option if available.
 
-```sh
-# Using npm
-npm run android
+### Import / Export
 
-# OR using Yarn
-yarn android
-```
+Once the app is set up on one phone, you can transfer the full configuration to another phone without re-entering any details.
 
-### iOS
+**Exporting (on the configured phone):**
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
+1. Open the app to the Home screen
+2. Tap the **Export** button
+3. The app generates an encrypted `HC1:…` config string and opens the system share sheet
+4. Send it to yourself via any method (message, email, notes, etc.)
 
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
+**Importing (on the new phone):**
 
-```sh
-bundle install
-```
-
-Then, and every time you update your native dependencies, run:
-
-```sh
-bundle exec pod install
-```
-
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
-
-```sh
-# Using npm
-npm run ios
-
-# OR using Yarn
-yarn ios
-```
-
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
-
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
-
-## Step 3: Modify your app
-
-Now that you have successfully run the app, let's make changes!
-
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
-
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
-
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
-
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+1. Open the app — you will land on the Setup screen
+2. Tap **Import Configuration** to expand the import panel
+3. Paste the `HC1:…` string you exported
+4. Tap **Load Config** — all fields (Access ID, Secret, Device IDs, Light Groups) will be filled automatically
+5. Tap **Connect** to verify and save
