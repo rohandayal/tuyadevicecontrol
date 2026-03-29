@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { BrightnessSlider } from './BrightnessSlider';
 import type { Device } from '../types/device';
 
 interface Props {
@@ -102,20 +103,12 @@ export function DeviceCard({
       {/* ── Brightness control (dimmable lights only, when on) ── */}
       {isDimmable && device.isOn && (
         <View style={[styles.controlRow, isOffline && styles.disabledSection]}>
-          <Text style={styles.controlLabel}>Brightness</Text>
-          <StepControl
-            value={device.brightness}
-            unit="%"
-            step={10}
+          <BrightnessSlider
+            value={device.brightness ?? 50}
             min={10}
             max={100}
             busy={busy || isOffline}
-            onDecrease={() =>
-              run(() => onBrightnessChange(device.id, Math.max(10, device.brightness - 10)))
-            }
-            onIncrease={() =>
-              run(() => onBrightnessChange(device.id, Math.min(100, device.brightness + 10)))
-            }
+            onComplete={v => run(() => onBrightnessChange(device.id, v))}
           />
         </View>
       )}
@@ -145,44 +138,6 @@ export function DeviceCard({
   );
 }
 
-// ── Shared step-control component ──────────────────────────────────────────────
-
-interface StepProps {
-  value: number;
-  unit: string;
-  step: number;
-  min: number;
-  max: number;
-  busy: boolean;
-  onDecrease: () => void;
-  onIncrease: () => void;
-}
-
-function StepControl({ value, unit, min, max, busy, onDecrease, onIncrease }: StepProps) {
-  return (
-    <View style={stepStyles.row}>
-      <TouchableOpacity
-        style={[stepStyles.btn, value <= min && stepStyles.btnDisabled]}
-        onPress={onDecrease}
-        disabled={busy || value <= min}
-        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-      >
-        <Text style={stepStyles.btnText}>−</Text>
-      </TouchableOpacity>
-
-      <Text style={stepStyles.value}>{value}{unit}</Text>
-
-      <TouchableOpacity
-        style={[stepStyles.btn, value >= max && stepStyles.btnDisabled]}
-        onPress={onIncrease}
-        disabled={busy || value >= max}
-        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-      >
-        <Text style={stepStyles.btnText}>+</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
@@ -271,17 +226,10 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
   },
   controlRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: '#2a2a4a',
-  },
-  controlLabel: {
-    flex: 1,
-    color: '#94a3b8',
-    fontSize: 13,
   },
   speedRow: {
     flexDirection: 'row',
@@ -314,32 +262,3 @@ const styles = StyleSheet.create({
   },
 });
 
-const stepStyles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  btn: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: '#2a2a4a',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  btnDisabled: { opacity: 0.35 },
-  btnText: {
-    color: '#f1f5f9',
-    fontSize: 20,
-    lineHeight: 22,
-    fontWeight: '300',
-  },
-  value: {
-    color: '#f1f5f9',
-    fontSize: 14,
-    fontWeight: '600',
-    minWidth: 48,
-    textAlign: 'center',
-  },
-});

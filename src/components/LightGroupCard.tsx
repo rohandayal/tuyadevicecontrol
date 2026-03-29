@@ -1,12 +1,12 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import {
   ActivityIndicator,
-  PanResponder,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { BrightnessSlider } from './BrightnessSlider';
 import type { LightGroup, LightGroupState } from '../types/lightGroup';
 
 // ── Color utilities ─────────────────────────────────────────────────────────
@@ -105,48 +105,13 @@ export function LightGroupCard({
   const [localBrightness, setLocalBrightness] = useState(state.brightness);
   const isOffline = !state.online;
 
-  const sliderWidthRef = useRef(0);
-  const startBrightness = useRef(state.brightness);
-
   const run = async (action: () => Promise<void>) => {
     setBusy(true);
     try { await action(); } finally { setBusy(false); }
   };
 
-  const pan = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => !isOffline,
-      onPanResponderGrant: e => {
-        if (sliderWidthRef.current === 0) return;
-        const pct = Math.max(0, Math.min(1, e.nativeEvent.locationX / sliderWidthRef.current));
-        const v = Math.max(1, Math.min(100, Math.round(1 + pct * 99)));
-        startBrightness.current = v;
-        setLocalBrightness(v);
-      },
-      onPanResponderMove: (_, gs) => {
-        if (sliderWidthRef.current === 0) return;
-        const v = Math.max(
-          1,
-          Math.min(100, startBrightness.current + Math.round((gs.dx / sliderWidthRef.current) * 100)),
-        );
-        setLocalBrightness(v);
-      },
-      onPanResponderRelease: (_, gs) => {
-        if (sliderWidthRef.current === 0) return;
-        const v = Math.max(
-          1,
-          Math.min(100, startBrightness.current + Math.round((gs.dx / sliderWidthRef.current) * 100)),
-        );
-        setLocalBrightness(v);
-        run(() => onBrightness(group, v));
-      },
-    }),
-  ).current;
-
   const activeColourHex =
     state.mode === 'colour' ? hsvToHex(state.hue, state.sat / 1000) : null;
-
-  const fillPct = `${localBrightness}%`;
 
   return (
     <View style={[styles.card, isOffline ? styles.cardOffline : (state.isOn ? styles.cardOn : styles.cardOff)]}>
@@ -199,22 +164,17 @@ export function LightGroupCard({
       </View>
 
       {/* ── Brightness slider ── */}
-      <View style={[styles.sliderSection, isOffline && styles.disabledSection]}>
-        <Text style={styles.sliderLabel}>Brightness</Text>
-        <View style={styles.sliderRow}>
-          <View
-            style={styles.sliderTrack}
-            onLayout={e => { sliderWidthRef.current = e.nativeEvent.layout.width; }}
-            {...pan.panHandlers}
-          >
-            {/* eslint-disable-next-line react-native/no-inline-styles */}
-            <View style={[styles.sliderFill, { width: fillPct as any }]} />
-            {/* eslint-disable-next-line react-native/no-inline-styles */}
-            <View style={[styles.sliderThumb, { left: fillPct as any, marginLeft: -9 }]} />
-          </View>
-          <Text style={styles.sliderValue}>{localBrightness}%</Text>
-        </View>
-      </View>
+      <BrightnessSlider
+        value={localBrightness}
+        min={1}
+        max={100}
+        step={1}
+        busy={busy || isOffline}
+        onComplete={async v => {
+          setLocalBrightness(v);
+          await run(() => onBrightness(group, v));
+        }}
+      />
 
       {/* ── Colour section ── */}
       <TouchableOpacity
@@ -380,56 +340,6 @@ const styles = StyleSheet.create({
   presetLabel: {
     fontSize: 11,
     fontWeight: '700',
-  },
-
-  // Brightness slider
-  sliderSection: {
-    gap: 6,
-  },
-  sliderLabel: {
-    color: '#64748b',
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-  },
-  sliderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  sliderTrack: {
-    flex: 1,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#2a2a4a',
-    justifyContent: 'center',
-    overflow: 'visible',
-  },
-  sliderFill: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    borderRadius: 3,
-    backgroundColor: '#6366f1',
-  },
-  sliderThumb: {
-    position: 'absolute',
-    top: -6,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: '#c7d2fe',
-    borderWidth: 2,
-    borderColor: '#6366f1',
-  },
-  sliderValue: {
-    color: '#64748b',
-    fontSize: 12,
-    fontWeight: '600',
-    minWidth: 36,
-    textAlign: 'right',
   },
 
   // Colour section
