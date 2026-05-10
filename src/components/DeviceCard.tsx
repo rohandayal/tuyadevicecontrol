@@ -1,15 +1,31 @@
 import React, { useState } from 'react';
-import {
-  ActivityIndicator,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
-import { BrightnessSlider } from './BrightnessSlider';
+import { FanCard } from './FanCard';
+import { LightCard } from './LightCard';
 import type { Device } from '../types/device';
+import type { CyncDevice } from '../types/cyncDevice';
+import {
+  handleCyncBrightness,
+  handleCyncColorTemp,
+  handleCyncColour,
+  handleCyncToggle,
+} from '../api/CyncControl';
+import { CYNC_WHITE_PRESETS } from './lightPresets';
+import { LIGHT_WHEEL_SWATCHES } from './lightWheelSwatches';
+import { hsvToHex } from '../utils/color';
+import {
+  handleTuyaBrightness,
+  handleTuyaFanLight,
+  handleTuyaFanSpeed,
+  handleTuyaToggle,
+} from '../api/TuyaControl';
 
-interface Props {
+interface BaseProps {
+  effectiveRoom?: string;
+  onRoomPress?: () => void;
+}
+
+interface TuyaDeviceCardProps extends BaseProps {
+  provider: 'tuya';
   device: Device;
   onToggle: (id: string, isOn: boolean) => Promise<void>;
   onBrightnessChange: (id: string, value: number) => Promise<void>;
@@ -17,16 +33,20 @@ interface Props {
   onFanLightChange: (id: string, level: string) => Promise<void>;
 }
 
-export function DeviceCard({
-  device,
-  onToggle,
-  onBrightnessChange,
-  onFanSpeedChange,
-  onFanLightChange,
-}: Props) {
-  const [busy, setBusy] = useState(false);
+interface CyncCardProps extends BaseProps {
+  provider: 'cync';
+  device: CyncDevice;
+  onStateChange: (id: string, patch: Partial<CyncDevice>) => void;
+}
 
-  const run = async (action: () => Promise<void>) => {
+type Props = TuyaDeviceCardProps | CyncCardProps;
+
+export function DeviceCard(props: Props) {
+  const { effectiveRoom, onRoomPress } = props;
+  const [busy, setBusy] = useState(false);
+  const [colourOpen, setColourOpen] = useState(false);
+
+  const run = async (action: () => void | Promise<void>) => {
     setBusy(true);
     try {
       await action();
@@ -35,230 +55,88 @@ export function DeviceCard({
     }
   };
 
-  const isFan = device.type === 'FAN';
-  const isDimmable = device.type === 'DIMMABLE_LIGHT';
-  const isOffline = !device.online;
+  if (props.provider === 'tuya') {
+    const {
+      device,
+      onToggle,
+      onBrightnessChange,
+      onFanSpeedChange,
+      onFanLightChange,
+    } = props;
+    const isFan = device.type === 'FAN';
+    const isOffline = !device.online;
+
+    if (isFan) {
+      return (
+        <FanCard
+          name={device.name}
+          isOn={device.isOn}
+          busy={busy}
+          roomLabel={effectiveRoom ?? device.room}
+          onRoomPress={onRoomPress}
+          offline={isOffline}
+          fanSpeed={device.fanSpeed}
+          fanLight={device.fanLight}
+          onSpeed={level =>
+            run(() => handleTuyaFanSpeed(device, level, onToggle, onFanSpeedChange))
+          }
+          onFanLight={level =>
+            run(() => handleTuyaFanLight(device, level, onFanLightChange))
+          }
+        />
+      );
+    }
+
+    const supportsBrightness = device.type === 'DIMMABLE_LIGHT';
+    return (
+      <LightCard
+        name={device.name}
+        isOn={device.isOn}
+        busy={busy}
+        roomLabel={effectiveRoom ?? device.room}
+        onRoomPress={onRoomPress}
+        offline={isOffline}
+        onToggle={() => run(() => handleTuyaToggle(device, onToggle))}
+        supportsBrightness={supportsBrightness}
+        brightness={device.brightness ?? 50}
+        brightnessMin={10}
+        brightnessMax={100}
+        onBrightness={value => run(() => handleTuyaBrightness(device, value, onBrightnessChange))}
+      />
+    );
+  }
+
+  const { device, onStateChange } = props;
+  const activeColourHex =
+    device.mode === 'colour' ? hsvToHex(device.hue, device.sat / 1000) : null;
 
   return (
-    <View style={[styles.card, device.isOn ? styles.cardOn : styles.cardOff, isOffline && styles.cardOffline]}>
-      {/* Spinner overlay while a command is in flight */}
-      {busy && <ActivityIndicator style={styles.spinner} color="#818cf8" size="small" />}
-
-      {/* ── Header row ── */}
-      <View style={styles.row}>
-        <View style={[styles.iconWrap, device.isOn && styles.iconWrapOn]}>
-          <Text style={styles.icon}>{isFan ? '🌀' : '💡'}</Text>
-        </View>
-
-        <View style={styles.labels}>
-          <Text style={styles.name} numberOfLines={1}>{device.name}</Text>
-          {isOffline
-            ? <Text style={styles.offlineBadge}>Offline</Text>
-            : !!device.room && <Text style={styles.room} numberOfLines={1}>{device.room}</Text>
-          }
-        </View>
-
-        {/* On / Off toggle — hidden for fans (speed buttons handle on/off) */}
-        {!isFan && (
-          <TouchableOpacity
-            style={[styles.toggle, device.isOn && styles.toggleOn]}
-            onPress={() => run(() => onToggle(device.id, !device.isOn))}
-            disabled={busy || isOffline}
-            activeOpacity={0.75}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <View style={[styles.thumb, device.isOn && styles.thumbOn]} />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* ── Fan speed buttons: 0 = off, 1–5 = speed level ── */}
-      {isFan && (
-        <View style={[styles.speedRow, isOffline && styles.disabledSection]}>
-          {[0, 1, 2, 3, 4, 5].map(level => {
-            const active = level === 0 ? !device.isOn : device.isOn && device.fanSpeed === level;
-            return (
-              <TouchableOpacity
-                key={level}
-                style={[styles.speedBtn, active && styles.speedBtnActive]}
-                onPress={() =>
-                  run(() =>
-                    level === 0
-                      ? onToggle(device.id, false)
-                      : onFanSpeedChange(device.id, level),
-                  )
-                }
-                disabled={busy || isOffline}
-                activeOpacity={0.75}
-              >
-                <Text style={[styles.speedBtnText, active && styles.speedBtnTextActive]}>
-                  {level === 0 ? 'Off' : String(level)}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      )}
-
-      {/* ── Brightness control (dimmable lights only, when on) ── */}
-      {isDimmable && device.isOn && (
-        <View style={[styles.controlRow, isOffline && styles.disabledSection]}>
-          <BrightnessSlider
-            value={device.brightness ?? 50}
-            min={10}
-            max={100}
-            busy={busy || isOffline}
-            onComplete={v => run(() => onBrightnessChange(device.id, v))}
-          />
-        </View>
-      )}
-
-      {/* ── Fan light control ── */}
-      {isFan && (
-        <View style={[styles.speedRow, isOffline && styles.disabledSection]}>
-          {(['Off', 'Level1', 'Level2', 'Level3'] as const).map((level, i) => {
-            const active = device.fanLight === level;
-            return (
-              <TouchableOpacity
-                key={level}
-                style={[styles.speedBtn, active && styles.speedBtnActive]}
-                onPress={() => run(() => onFanLightChange(device.id, level))}
-                disabled={busy || isOffline}
-                activeOpacity={0.75}
-              >
-                <Text style={[styles.speedBtnText, active && styles.speedBtnTextActive]}>
-                  {i === 0 ? 'Off' : `L${i}`}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      )}
-    </View>
+    <LightCard
+      name={device.name}
+      isOn={device.isOn}
+      busy={busy}
+      roomLabel={effectiveRoom}
+      onRoomPress={onRoomPress}
+      onToggle={() => run(() => handleCyncToggle(device, onStateChange))}
+      supportsBrightness={device.supportsBrightness}
+      brightness={device.brightness >= 0 ? device.brightness : 50}
+      brightnessMin={1}
+      brightnessMax={100}
+      onBrightness={value => run(() => handleCyncBrightness(device, value, onStateChange))}
+      supportsColorTemp={device.supportsColorTemp}
+      supportsRgb={device.supportsRgb}
+      whitePresets={CYNC_WHITE_PRESETS.map(p => ({ ...p }))}
+      colorTemp={device.colorTemp}
+      mode={device.mode}
+      hue={device.hue}
+      sat={device.sat}
+      activeColourHex={activeColourHex}
+      colourOpen={colourOpen}
+      onToggleColourOpen={() => setColourOpen(v => !v)}
+      onColorTemp={value => run(() => handleCyncColorTemp(device, value, onStateChange))}
+      onColour={(h, s) => run(() => handleCyncColour(device, h, s, onStateChange))}
+      wheelSwatches={LIGHT_WHEEL_SWATCHES}
+    />
   );
 }
-
-
-// ── Styles ────────────────────────────────────────────────────────────────────
-
-const styles = StyleSheet.create({
-  card: {
-    backgroundColor: '#1d1d35',
-    borderRadius: 18,
-    padding: 16,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#2a2a4a',
-  },
-  cardOn: {
-    borderColor: '#6366f1',
-    backgroundColor: '#1e1e3c',
-  },
-  cardOff: {
-    borderColor: '#5c1818',
-  },
-  cardOffline: {
-    borderColor: '#374151',
-    opacity: 0.6,
-  },
-  disabledSection: {
-    opacity: 0.4,
-  },
-  spinner: {
-    position: 'absolute',
-    top: 14,
-    right: 14,
-    zIndex: 1,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  iconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: '#2a2a4a',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconWrapOn: {
-    backgroundColor: '#312e81',
-  },
-  icon: { fontSize: 22 },
-  labels: { flex: 1 },
-  name: {
-    color: '#f1f5f9',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  room: {
-    color: '#64748b',
-    fontSize: 12,
-    marginTop: 2,
-  },
-  offlineBadge: {
-    color: '#6b7280',
-    fontSize: 11,
-    fontWeight: '600',
-    marginTop: 2,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  toggle: {
-    width: 50,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#374151',
-    justifyContent: 'center',
-    paddingHorizontal: 3,
-  },
-  toggleOn: { backgroundColor: '#6366f1' },
-  thumb: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: '#9ca3af',
-  },
-  thumbOn: {
-    backgroundColor: '#fff',
-    alignSelf: 'flex-end',
-  },
-  controlRow: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#2a2a4a',
-  },
-  speedRow: {
-    flexDirection: 'row',
-    gap: 6,
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#2a2a4a',
-  },
-  speedBtn: {
-    flex: 1,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: '#2a2a4a',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  speedBtnActive: {
-    backgroundColor: '#312e81',
-    borderWidth: 1,
-    borderColor: '#6366f1',
-  },
-  speedBtnText: {
-    color: '#64748b',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  speedBtnTextActive: {
-    color: '#c7d2fe',
-  },
-});
 

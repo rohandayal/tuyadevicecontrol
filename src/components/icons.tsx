@@ -19,45 +19,39 @@ export function PowerIcon({ color, size = 22 }: IconProps) {
   const sw = Math.max(2, Math.round(size * 0.1));
   const d = size - sw;
   const gap = Math.round(size * 0.32);
+  const rootStyle = { width: size, height: size };
+  const circleStyle = {
+    width: d,
+    height: d,
+    borderRadius: d / 2,
+    borderWidth: sw,
+    borderColor: color,
+    top: sw / 2,
+    left: sw / 2,
+  };
+  const maskStyle = {
+    width: gap,
+    height: sw + 3,
+    top: 0,
+    left: size / 2 - gap / 2,
+  };
+  const lineStyle = {
+    width: sw,
+    height: Math.round(size * 0.46),
+    backgroundColor: color,
+    borderRadius: sw / 2,
+    top: 0,
+    left: size / 2 - sw / 2,
+  };
 
   return (
-    <View style={{ width: size, height: size }}>
+    <View style={rootStyle}>
       {/* Full circle border */}
-      <View
-        style={{
-          position: 'absolute',
-          width: d,
-          height: d,
-          borderRadius: d / 2,
-          borderWidth: sw,
-          borderColor: color,
-          top: sw / 2,
-          left: sw / 2,
-        }}
-      />
+      <View style={[styles.abs, circleStyle]} />
       {/* Black mask to carve gap at top-center of circle */}
-      <View
-        style={{
-          position: 'absolute',
-          width: gap,
-          height: sw + 3,
-          backgroundColor: '#000000',
-          top: 0,
-          left: size / 2 - gap / 2,
-        }}
-      />
+      <View style={[styles.abs, styles.maskBg, maskStyle]} />
       {/* Vertical stroke through gap */}
-      <View
-        style={{
-          position: 'absolute',
-          width: sw,
-          height: Math.round(size * 0.46),
-          backgroundColor: color,
-          borderRadius: sw / 2,
-          top: 0,
-          left: size / 2 - sw / 2,
-        }}
-      />
+      <View style={[styles.abs, lineStyle]} />
     </View>
   );
 }
@@ -74,3 +68,12 @@ export function SettingsIcon({ color, size = 22 }: IconProps) {
     </Text>
   );
 }
+
+const styles = {
+  abs: {
+    position: 'absolute' as const,
+  },
+  maskBg: {
+    backgroundColor: '#000000',
+  },
+};
